@@ -126,7 +126,38 @@ This will:
 - Save transcripts to `data/output/[category]/transcripts/[model]/`
 - Skip files that are already transcribed (idempotent)
 
-### 5. View Transcripts
+### 5. Check Progress
+
+Monitor transcription progress across all categories and models:
+
+```bash
+make status
+```
+
+This will display:
+- Input file counts for each category
+- WAV file conversion progress
+- Transcription progress for each model independently
+- Categories sorted by average progress across all models
+- Only shows models that have been run (have transcript directories)
+
+Example output:
+```
+Category: my-podcasts
+  Input files:  10
+  WAV files:    10
+
+  tiny-en   :   8 transcripts ( 80%)
+  medium-en :   5 transcripts ( 50%)
+
+Category: interviews
+  Input files:   5
+  WAV files:     5
+
+  medium-en :   2 transcripts ( 40%)
+```
+
+### 6. View Transcripts
 
 After transcription, you will find your transcripts organized by category and model:
 
@@ -154,6 +185,9 @@ make prepare
 # Transcribe with medium model (good balance of speed and quality)
 make medium
 
+# Check progress
+make status
+
 # View results
 cat data/output/interviews/transcripts/medium/interview1.txt
 ```
@@ -171,9 +205,10 @@ make prepare    # Convert once
 make tiny       # Fast preview
 make medium     # Better quality
 make large      # Best quality
+make status     # Check progress for all models
 ```
 
-Each model's output is stored separately in `data/output/[category]/transcripts/[model]/`.
+Each model's output is stored separately in `data/output/[category]/transcripts/[model]/`. Use `make status` to see progress for each model independently.
 
 ### Processing Multiple Categories
 
