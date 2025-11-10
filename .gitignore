@@ -1,6 +1,7 @@
 # Data directories
 data/input/
 data/output/
+tmp/
 
 # Python
 __pycache__/

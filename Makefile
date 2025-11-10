@@ -1,5 +1,8 @@
 .PHONY: help init prepare tiny tiny-en medium medium-en large clean status
 
+# Supported input file formats for conversion
+AUDIO_VIDEO_FORMATS := mp4 mp3 m4a wav avi mkv webm flv mov
+
 help:
 	@echo "Available targets:"
 	@echo "  init       - Install dependencies"
@@ -39,10 +42,21 @@ status:
 	@echo ""
 	@tmpfile=$$(mktemp); \
 	models="tiny tiny-en medium medium-en large"; \
+	formats="$(AUDIO_VIDEO_FORMATS)"; \
 	for category in data/input/*/; do \
 		category_name=$$(basename "$$category"); \
 		if [ "$$category_name" = "*" ]; then continue; fi; \
-		input_count=$$(find "$$category" -type f ! -name ".*" ! -name ".DS_Store" 2>/dev/null | wc -l | tr -d ' '); \
+		find_expr=""; \
+		first=true; \
+		for fmt in $$formats; do \
+			if [ "$$first" = true ]; then \
+				find_expr="-iname \"*.$$fmt\""; \
+				first=false; \
+			else \
+				find_expr="$$find_expr -o -iname \"*.$$fmt\""; \
+			fi; \
+		done; \
+		input_count=$$(eval "find \"$$category\" -type f \( $$find_expr \) 2>/dev/null | wc -l | tr -d ' '"); \
 		wav_count=0; \
 		if [ -d "data/output/$$category_name/wav" ]; then \
 			wav_count=$$(find "data/output/$$category_name/wav" -type f -name "*.wav" 2>/dev/null | wc -l | tr -d ' '); \

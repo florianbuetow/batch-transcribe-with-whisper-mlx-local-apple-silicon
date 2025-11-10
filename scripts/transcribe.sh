@@ -48,14 +48,7 @@ find "$DATA_DIR/output" -mindepth 1 -maxdepth 1 -type d | while read -r category
         base_name=$(basename "$wav_file" .wav)
 
         # Check if transcript already exists
-        # Note: mlx_whisper creates transcripts by removing .wav and changing extension to .txt
-        # It strips file extensions (e.g., "video.ai.wav" becomes "video.txt")
-        # But keeps trailing dots (e.g., "video..wav" becomes "video..txt")
-        base_name_no_ext="${base_name%%.*}"  # Remove everything after first dot (handles .ai case)
-
-        # Check both cases: with and without the trailing dot
-        if [ -f "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name.txt" ] || \
-           [ -f "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name_no_ext.txt" ]; then
+        if [ -f "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name.txt" ]; then
             echo "  ⏭️  Skipping: $base_name.wav (transcript already exists)"
             echo "  ---"
             continue
@@ -63,15 +56,33 @@ find "$DATA_DIR/output" -mindepth 1 -maxdepth 1 -type d | while read -r category
 
         echo "  Transcribing: $base_name.wav"
 
-        # Transcribe WAV file
-        uv run mlx_whisper "$wav_file" --model "$MODEL_REPO" --output-dir "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME"
+        # Create a temp directory for this transcription
+        temp_dir=$(mktemp -d)
+
+        # Transcribe WAV file to temp directory
+        uv run mlx_whisper "$wav_file" --model "$MODEL_REPO" --output-dir "$temp_dir"
 
         if [ $? -eq 0 ]; then
-            echo "    ✅ Done: $base_name"
+            # Find the generated transcript (mlx_whisper creates a .txt file)
+            generated_transcript=$(find "$temp_dir" -type f -name "*.txt" | head -n 1)
+
+            if [ -f "$generated_transcript" ]; then
+                # Rename to match the WAV filename exactly
+                mv "$generated_transcript" "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name.txt"
+                echo "    ✅ Done: $base_name"
+            else
+                echo "    🚨 FAILED: No transcript generated for $base_name.wav"
+                rm -rf "$temp_dir"
+                exit 1
+            fi
         else
             echo "    🚨 FAILED to transcribe $base_name.wav"
+            rm -rf "$temp_dir"
             exit 1
         fi
+
+        # Clean up temp directory
+        rm -rf "$temp_dir"
 
         echo "  ---"
     done
