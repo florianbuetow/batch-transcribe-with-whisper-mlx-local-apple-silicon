@@ -282,7 +282,7 @@ A pattern is classified as a **hallucination** if `score > 0`.
 
 The decision boundary visualization shows how the SVM separates normal speech (blue region) from hallucinations (pink region):
 
-![SVM Decision Boundary](svm_decision_boundary.png)
+![SVM Decision Boundary](svm_decision_boundary.jpg)
 
 **Examples with default coefficients:**
 
