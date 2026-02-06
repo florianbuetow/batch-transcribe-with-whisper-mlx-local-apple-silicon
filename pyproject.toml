@@ -5,4 +5,5 @@ description = ""
 requires-python = ">=3.9"
 dependencies = [
     "mlx-whisper",
+    "srt",
 ]

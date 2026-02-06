@@ -1473,6 +1473,12 @@ wheels = [
 ]
 
 [[package]]
+name = "srt"
+version = "3.5.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/b7/4a1bc231e0681ebf339337b0cd05b91dc6a0d701fa852bb812e244b7a030/srt-3.5.3.tar.gz", hash = "sha256:4884315043a4f0740fd1f878ed6caa376ac06d70e135f306a6dc44632eed0cc0", size = 28296, upload-time = "2023-03-28T02:35:44.007Z" }
+
+[[package]]
 name = "sympy"
 version = "1.14.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1764,10 +1770,14 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "mlx-whisper" },
+    { name = "srt" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "mlx-whisper" }]
+requires-dist = [
+    { name = "mlx-whisper" },
+    { name = "srt" },
+]
 
 [[package]]
 name = "zipp"
