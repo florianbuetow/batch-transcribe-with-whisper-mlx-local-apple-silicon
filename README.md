@@ -1,6 +1,6 @@
 # Batch Transcribe Audio Files using MLX Whisper on Apple Silicon
 
-This project uses [MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper), Apple's MLX framework implementation of OpenAI's Whisper model, to transcribe audio and video files on Apple Silicon (M1/M2/M3) Macs. It is optimized for high-performance local inference on Mac hardware and requires no GPU or cloud services.
+This project uses [MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper), Apple's MLX framework implementation of OpenAI's Whisper model, to transcribe audio and video files on Apple Silicon (M1 or later) Macs. It is optimized for high-performance local inference using the Mac's built-in GPU and requires no cloud services.
 
 Audio and video files are organized into category folders (e.g., by source, channel, or topic), and the transcription workflow handles audio conversion, batch processing, and output management automatically.
 
@@ -15,7 +15,8 @@ Audio and video files are organized into category folders (e.g., by source, chan
 ├── pyproject.toml
 ├── scripts/
 │   ├── prepare_audio.sh
-│   └── transcribe.sh
+│   ├── transcribe.sh
+│   └── clean_transcripts.py
 └── data/
     ├── input/              # Source media files organized by category
     │   ├── category1/
@@ -24,7 +25,11 @@ Audio and video files are organized into category folders (e.g., by source, chan
     └── output/             # Generated files organized by category
         ├── category1/
         │   ├── wav/        # Converted audio files
-        │   └── transcripts/
+        │   ├── transcripts/
+        │   │   ├── tiny/
+        │   │   ├── medium/
+        │   │   └── large/
+        │   └── transcripts_cleaned/  # Hallucination-cleaned transcripts
         │       ├── tiny/
         │       ├── medium/
         │       └── large/
@@ -35,6 +40,7 @@ Audio and video files are organized into category folders (e.g., by source, chan
 - `pyproject.toml`: Python project configuration with MLX Whisper dependency.
 - `scripts/prepare_audio.sh`: Converts media files to WAV format (16kHz, mono, 16-bit PCM).
 - `scripts/transcribe.sh`: Batch transcribes WAV files using MLX Whisper models.
+- `scripts/clean_transcripts.py`: Removes hallucinations (repetitive patterns) from transcripts.
 - `data/input/`: Place your media files here, organized into category subfolders.
 - `data/output/`: Generated WAV files and transcripts are stored here, organized by category and model.
 
@@ -56,7 +62,7 @@ Models are automatically downloaded from HuggingFace when first used. Choose the
 
 ## Prerequisites
 
-- **macOS with Apple Silicon** (M1, M2, M3, or later)
+- **macOS with Apple Silicon** (M1 or later)
 - **just** command runner ([installation instructions](https://github.com/casey/just#installation))
   ```bash
   brew install just
@@ -130,7 +136,36 @@ This will:
 - Save transcripts to `data/output/[category]/transcripts/[model]/`
 - Skip files that are already transcribed (idempotent)
 
-### 5. Check Progress
+### 5. Clean Transcripts (Optional)
+
+Whisper can sometimes produce hallucinations - repetitive phrases that weren't in the original audio. This typically happens during silence or low-quality audio segments. To detect and remove these hallucinations:
+
+```bash
+just clean-transcripts
+```
+
+This will:
+- Scan all SRT files in `data/output/*/transcripts/*/`
+- Detect hallucinations using a suffix array algorithm and SVM classifier
+- Remove repetitive patterns while preserving timestamps
+- Save cleaned files to `data/output/[category]/transcripts_cleaned/[model]/`
+- Generate both `.srt` (with timestamps) and `.txt` (plain text) files
+
+To clean transcripts for a specific model only:
+
+```bash
+just clean-transcripts medium-en
+```
+
+For verbose output showing detected hallucinations:
+
+```bash
+just clean-transcripts "" true
+```
+
+**Note**: The hallucination detector uses a machine learning classifier trained on transcription patterns. It focuses on consecutive repetitions of phrases (3+ words repeated 5+ times). Single-word repetitions like "Okay. Okay. Okay." may not be flagged as they can occur in natural speech.
+
+### 6. Check Progress
 
 Monitor transcription progress across all categories and models:
 
@@ -161,13 +196,18 @@ Category: interviews
   medium-en :   2 transcripts ( 40%)
 ```
 
-### 6. View Transcripts
+### 7. View Transcripts
 
-After transcription, you will find your transcripts organized by category and model:
+After transcription (and optional cleaning), you will find your transcripts organized by category and model:
 
 ```bash
+# Original transcripts
 data/output/my-podcasts/transcripts/medium/episode1.txt
 data/output/my-podcasts/transcripts/medium/episode2.txt
+
+# Cleaned transcripts (after running clean-transcripts)
+data/output/my-podcasts/transcripts_cleaned/medium/episode1.txt
+data/output/my-podcasts/transcripts_cleaned/medium/episode1.srt
 ```
 
 ---
@@ -189,52 +229,90 @@ just prepare
 # Transcribe with medium model (good balance of speed and quality)
 just medium
 
+# Clean transcripts (remove hallucinations)
+just clean-transcripts
+
 # Check progress
 just status
 
-# View results
-cat data/output/interviews/transcripts/medium/interview1.txt
+# View results (use cleaned version if available)
+cat data/output/interviews/transcripts_cleaned/medium/interview1.txt
 ```
 
 ---
 
-## Advanced Usage
+## Tuning Hallucination Detection
 
-### Running Multiple Models
+The hallucination detection in `scripts/clean_transcripts.py` uses a two-stage approach:
 
-You can transcribe the same files with different models to compare quality:
+1. **Pattern Detection**: A suffix array algorithm finds consecutive repetitions in the transcript text
+2. **Classification**: A Support Vector Machine (SVM) classifier determines if a repetition is a hallucination or natural speech
 
-```bash
-just prepare    # Convert once
-just tiny       # Fast preview
-just medium     # Better quality
-just large      # Best quality
-just status     # Check progress for all models
+#### Pattern Detection
+
+The following parameters control the pattern detection stage and can be adjusted at the top of `scripts/clean_transcripts.py`:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `MIN_K` | 1 | Minimum phrase length in words. A value of 3 means only phrases of 3+ words are considered. |
+| `MIN_REPETITIONS` | 5 | Minimum consecutive repetitions required before checking the classifier. |
+| `MIN_WINDOW_SIZE` | 500 | Sliding window size in words for processing long transcripts. |
+| `OVERLAP_PERCENT` | 25.0 | Overlap between sliding windows (0-100). |
+
+#### SVM Classifier
+
+The classifier uses a linear SVM with two features:
+- **repetitions** (n): How many times the phrase repeats consecutively
+- **sequence_length** (k): How many words are in the repeated phrase
+
+The decision function is:
+
+```
+score = (coef_repetitions × n) + (coef_sequence_length × k) + intercept
 ```
 
-Each model's output is stored separately in `data/output/[category]/transcripts/[model]/`. Use `just status` to see progress for each model independently.
+With the default coefficients:
+- `coef_repetitions = 0.8888`
+- `coef_sequence_length = 0.6665`
+- `intercept = -6.777`
 
-### Processing Multiple Categories
+A pattern is classified as a **hallucination** if `score > 0`.
 
-Simply add folders to `data/input/` and the scripts will process them all:
+#### How Parameters Affect Classification
 
-```bash
-data/input/
-├── podcasts/
-├── interviews/
-├── lectures/
-└── meetings/
-```
+The decision boundary visualization shows how the SVM separates normal speech (blue region) from hallucinations (pink region):
 
-Running `just prepare` and `just medium` will process all categories.
+![SVM Decision Boundary](svm_decision_boundary.png)
 
-### Clean Up
+**Examples with default coefficients:**
 
-To remove all generated WAV files and transcripts (keeps original input files):
+| Phrase Length (k) | Repetitions (n) | Score | Classification |
+|-------------------|-----------------|-------|----------------|
+| 1 word | 6 times | -0.78 | Normal (not hallucination) |
+| 1 word | 8 times | 0.99 | Hallucination |
+| 3 words | 5 times | 0.11 | Hallucination |
+| 5 words | 3 times | -0.78 | Normal |
+| 5 words | 5 times | 0.99 | Hallucination |
 
-```bash
-just clean
-```
+**Key insights:**
+
+- Single-word repetitions need 7+ occurrences to be flagged
+- Longer phrases (3+ words) are flagged more easily
+- The classifier was trained to distinguish natural speech patterns ("you know, you know") from true hallucinations
+
+#### Adjusting for Your Use Case
+
+**More aggressive detection** (catches more hallucinations, may have false positives):
+
+- Lower `MIN_REPETITIONS` to 3 or 4
+- Lower `MIN_K` to 1 (already default)
+- Adjust `intercept` to a more negative value (e.g., -7.5)
+
+**More conservative detection** (fewer false positives, may miss some hallucinations):
+
+- Raise `MIN_REPETITIONS` to 6 or 7
+- Raise `MIN_K` to 3 (ignores single/double word patterns)
+- Adjust `intercept` to a less negative value (e.g., -6.0)
 
 ---
 
@@ -275,6 +353,11 @@ Install UV package manager:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
+### Hallucinations not detected?
+
+- The detector may not catch all repetitive patterns depending on phrase length and repetition count
+- See the [Tuning Hallucination Detection](#tuning-hallucination-detection) section to adjust parameters for your use case
+
 ### Transcription is too slow?
 
 - Use a smaller model (`tiny` or `medium` instead of `large`)
@@ -305,7 +388,7 @@ This keeps transcripts well-organized in `data/output/` with the same structure.
 - **Category-based organization**: Unlike model-based routing, this system organizes by content source/category.
 - **Two-stage workflow**: Separate audio preparation and transcription allows you to prepare once, then try different models.
 - **Output format**: Generates `.txt` transcripts by default. MLX Whisper also supports other formats.
-- **Apple Silicon only**: This project requires Apple Silicon (M1/M2/M3). For Intel Macs or other platforms, use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) instead.
+- **Apple Silicon only**: This project requires Apple Silicon (M1 or later). For Intel Macs or other platforms, use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) instead.
 
 ---
 
