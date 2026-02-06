@@ -11,15 +11,16 @@ default:
 help:
     @echo ""
     @echo "Available targets:"
-    @echo "  init       - Install dependencies"
-    @echo "  prepare    - Convert audio/video files to WAV files"
-    @echo "  tiny       - Transcribe WAVs with tiny model (fastest, multilingual)"
-    @echo "  tiny-en    - Transcribe WAVs with tiny English-only model"
-    @echo "  medium     - Transcribe WAVs with medium model (multilingual)"
-    @echo "  medium-en  - Transcribe WAVs with medium English-only model"
-    @echo "  large      - Transcribe WAVs with large-v3 model (best quality, multilingual)"
-    @echo "  status     - Show transcription progress for each category"
-    @echo "  clean      - Remove all WAV and transcript files"
+    @echo "  init              - Install dependencies"
+    @echo "  prepare           - Convert audio/video files to WAV files"
+    @echo "  tiny              - Transcribe WAVs with tiny model (fastest, multilingual)"
+    @echo "  tiny-en           - Transcribe WAVs with tiny English-only model"
+    @echo "  medium            - Transcribe WAVs with medium model (multilingual)"
+    @echo "  medium-en         - Transcribe WAVs with medium English-only model"
+    @echo "  large             - Transcribe WAVs with large-v3 model (best quality, multilingual)"
+    @echo "  clean-transcripts - Remove hallucinations from transcripts"
+    @echo "  status            - Show transcription progress for each category"
+    @echo "  clean             - Remove all WAV and transcript files"
     @echo ""
 
 # Install dependencies
@@ -62,6 +63,13 @@ medium-en VERBOSE="":
 large VERBOSE="":
     @echo ""
     DATA_DIR="{{justfile_directory()}}/data" MODEL_NAME=large MODEL_REPO=mlx-community/whisper-large-v3-mlx VERBOSE="{{VERBOSE}}" bash scripts/transcribe.sh
+    @echo ""
+
+# Clean transcripts by removing hallucinations (repetitive patterns)
+clean-transcripts MODEL="" VERBOSE="":
+    @echo ""
+    @echo "Cleaning transcripts (removing hallucinations)..."
+    DATA_DIR="{{justfile_directory()}}/data" MODEL="{{MODEL}}" VERBOSE="{{VERBOSE}}" uv run python scripts/clean_transcripts.py
     @echo ""
 
 # Show transcription progress for each category
