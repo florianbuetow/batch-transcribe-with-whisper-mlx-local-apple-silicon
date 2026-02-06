@@ -18,6 +18,10 @@ if [ -z "$MODEL_REPO" ]; then
     echo "🚨 ERROR: MODEL_REPO environment variable is required (e.g., MODEL_REPO=mlx-community/whisper-medium-mlx)"
     exit 1
 fi
+
+# VERBOSE: Set to "true" to show individual skip messages, otherwise show summary
+# Default is "false" (summary only)
+VERBOSE="${VERBOSE:-false}"
 # --- End Configuration ---
 
 # Check if DATA_DIR is set to the default value
@@ -41,16 +45,22 @@ find "$DATA_DIR/output" -mindepth 1 -maxdepth 1 -type d | while read -r category
     # Create transcripts directory for this category
     mkdir -p "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME"
 
+    # Counter for skipped files in this category
+    skipped_count=0
+
     # Find all .wav files in this category's wav directory
-    find "$category_dir/wav" -maxdepth 1 -type f -name "*.wav" -print0 2>/dev/null | while IFS= read -r -d '' wav_file; do
+    while IFS= read -r -d '' wav_file; do
 
         # Get the base filename without the .wav extension
         base_name=$(basename "$wav_file" .wav)
 
         # Check if transcript already exists
         if [ -f "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name.txt" ]; then
-            echo "  ⏭️  Skipping: $base_name.wav (transcript already exists)"
-            echo "  ---"
+            skipped_count=$((skipped_count + 1))
+            if [ "$VERBOSE" = "true" ]; then
+                echo "  ⏭️  Skipping: $base_name.wav (transcript already exists)"
+                echo "  ---"
+            fi
             continue
         fi
 
@@ -59,17 +69,23 @@ find "$DATA_DIR/output" -mindepth 1 -maxdepth 1 -type d | while read -r category
         # Create a temp directory for this transcription
         temp_dir=$(mktemp -d)
 
-        # Transcribe WAV file to temp directory
-        uv run mlx_whisper "$wav_file" --model "$MODEL_REPO" --output-dir "$temp_dir"
+        # Transcribe WAV file to temp directory (output all formats: txt, srt, vtt, tsv, json)
+        uv run mlx_whisper "$wav_file" --model "$MODEL_REPO" --output-dir "$temp_dir" --output-format all
 
         if [ $? -eq 0 ]; then
-            # Find the generated transcript (mlx_whisper creates a .txt file)
-            generated_transcript=$(find "$temp_dir" -type f -name "*.txt" | head -n 1)
+            # Move all generated files to the transcripts directory
+            # mlx_whisper creates: .txt, .srt, .vtt, .tsv, .json
+            moved_files=0
+            for ext in txt srt vtt tsv json; do
+                generated_file=$(find "$temp_dir" -type f -name "*.$ext" | head -n 1)
+                if [ -f "$generated_file" ]; then
+                    mv "$generated_file" "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name.$ext"
+                    moved_files=$((moved_files + 1))
+                fi
+            done
 
-            if [ -f "$generated_transcript" ]; then
-                # Rename to match the WAV filename exactly
-                mv "$generated_transcript" "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name.txt"
-                echo "    ✅ Done: $base_name"
+            if [ $moved_files -gt 0 ]; then
+                echo "    ✅ Done: $base_name ($moved_files formats)"
             else
                 echo "    🚨 FAILED: No transcript generated for $base_name.wav"
                 rm -rf "$temp_dir"
@@ -85,7 +101,12 @@ find "$DATA_DIR/output" -mindepth 1 -maxdepth 1 -type d | while read -r category
         rm -rf "$temp_dir"
 
         echo "  ---"
-    done
+    done < <(find "$category_dir/wav" -maxdepth 1 -type f -name "*.wav" -print0 2>/dev/null)
+
+    # Print skip summary if any files were skipped
+    if [ $skipped_count -gt 0 ]; then
+        echo "⏭️  Skipped $skipped_count file(s) (transcript already exists)"
+    fi
 
     echo ""
 done

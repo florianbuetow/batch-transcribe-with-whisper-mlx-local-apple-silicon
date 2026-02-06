@@ -6,6 +6,10 @@
 if [ -z "$DATA_DIR" ]; then
     DATA_DIR="/path/to/your/data/folder"
 fi
+
+# VERBOSE: Set to "true" to show individual skip messages, otherwise show summary
+# Default is "false" (summary only)
+VERBOSE="${VERBOSE:-false}"
 # --- End Configuration ---
 
 # Check if DATA_DIR is set to the default value
@@ -43,9 +47,12 @@ find "$DATA_DIR/input" -mindepth 1 -maxdepth 1 -type d | while read -r category_
     # Create output directory for this category
     mkdir -p "$DATA_DIR/output/$category_name/wav"
 
+    # Counter for skipped files in this category
+    skipped_count=0
+
     # Process all supported media files (.mp4, .wav, .webm, .m4a, .mov, .m4v, .mp3, .ogg)
     # Find all media files in this category's input directory
-    find "$category_dir" -maxdepth 1 -type f \( -name "*.mp4" -o -name "*.wav" -o -name "*.webm" -o -name "*.m4a" -o -name "*.mov" -o -name "*.m4v" -o -name "*.mp3" -o -name "*.ogg" \) -print0 | while IFS= read -r -d '' input_file; do
+    while IFS= read -r -d '' input_file; do
 
         # Get the base filename and extension
         filename=$(basename "$input_file")
@@ -57,7 +64,11 @@ find "$DATA_DIR/input" -mindepth 1 -maxdepth 1 -type d | while read -r category_
 
         # Check if output WAV file already exists
         if [ -f "$output_wav" ]; then
-            echo "  ⏭️  Skipping: $filename (WAV already exists)"
+            skipped_count=$((skipped_count + 1))
+            if [ "$VERBOSE" = "true" ]; then
+                echo "  ⏭️  Skipping: $filename (WAV already exists)"
+                echo "  ---"
+            fi
         else
             echo "  Processing: $filename"
 
@@ -81,10 +92,15 @@ find "$DATA_DIR/input" -mindepth 1 -maxdepth 1 -type d | while read -r category_
                 echo "    🚨 FAILED to convert $filename"
                 exit 1
             fi
+            echo "  ---"
         fi
 
-        echo "  ---"
-    done
+    done < <(find "$category_dir" -maxdepth 1 -type f \( -iname "*.mp4" -o -iname "*.wav" -o -iname "*.webm" -o -iname "*.m4a" -o -iname "*.mov" -o -iname "*.m4v" -o -iname "*.mp3" -o -iname "*.ogg" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.flv" \) -print0)
+
+    # Print skip summary if any files were skipped
+    if [ $skipped_count -gt 0 ]; then
+        echo "⏭️  Skipped $skipped_count file(s) (WAV already exists)"
+    fi
 
     echo ""
 done
