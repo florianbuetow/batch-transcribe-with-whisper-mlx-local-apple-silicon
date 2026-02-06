@@ -10,7 +10,7 @@ Audio and video files are organized into category folders (e.g., by source, chan
 
 ```bash
 .
-├── Makefile
+├── justfile
 ├── README.md
 ├── pyproject.toml
 ├── scripts/
@@ -31,7 +31,7 @@ Audio and video files are organized into category folders (e.g., by source, chan
         └── ...
 ```
 
-- `Makefile`: Automation targets for dependency setup, audio preparation, and transcription with different models.
+- `justfile`: Automation targets for dependency setup, audio preparation, and transcription with different models.
 - `pyproject.toml`: Python project configuration with MLX Whisper dependency.
 - `scripts/prepare_audio.sh`: Converts media files to WAV format (16kHz, mono, 16-bit PCM).
 - `scripts/transcribe.sh`: Batch transcribes WAV files using MLX Whisper models.
@@ -57,6 +57,10 @@ Models are automatically downloaded from HuggingFace when first used. Choose the
 ## Prerequisites
 
 - **macOS with Apple Silicon** (M1, M2, M3, or later)
+- **just** command runner ([installation instructions](https://github.com/casey/just#installation))
+  ```bash
+  brew install just
+  ```
 - **UV package manager** ([installation instructions](https://docs.astral.sh/uv/getting-started/installation/))
   ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -75,7 +79,7 @@ Models are automatically downloaded from HuggingFace when first used. Choose the
 First, install the required Python dependencies:
 
 ```bash
-make init
+just init
 ```
 
 This runs `uv sync` to set up the Python environment with MLX Whisper.
@@ -97,7 +101,7 @@ Supported formats: `.mp4`, `.wav`, `.webm`, `.m4a`, `.mov`, `.m4v`, `.mp3`, `.og
 Convert all media files to WAV format (required by Whisper):
 
 ```bash
-make prepare
+just prepare
 ```
 
 This will:
@@ -112,11 +116,11 @@ This will:
 Run transcription with one of the available models:
 
 ```bash
-make tiny       # Fastest, multilingual
-make tiny-en    # Fastest, English-only
-make medium     # Balanced, multilingual
-make medium-en  # Balanced, English-only
-make large      # Best quality, multilingual
+just tiny       # Fastest, multilingual
+just tiny-en    # Fastest, English-only
+just medium     # Balanced, multilingual
+just medium-en  # Balanced, English-only
+just large      # Best quality, multilingual
 ```
 
 This will:
@@ -131,7 +135,7 @@ This will:
 Monitor transcription progress across all categories and models:
 
 ```bash
-make status
+just status
 ```
 
 This will display:
@@ -172,7 +176,7 @@ data/output/my-podcasts/transcripts/medium/episode2.txt
 
 ```bash
 # Install dependencies
-make init
+just init
 
 # Add your media files
 mkdir -p data/input/interviews
@@ -180,13 +184,13 @@ cp interview1.mp4 data/input/interviews/
 cp interview2.m4a data/input/interviews/
 
 # Convert to WAV
-make prepare
+just prepare
 
 # Transcribe with medium model (good balance of speed and quality)
-make medium
+just medium
 
 # Check progress
-make status
+just status
 
 # View results
 cat data/output/interviews/transcripts/medium/interview1.txt
@@ -201,14 +205,14 @@ cat data/output/interviews/transcripts/medium/interview1.txt
 You can transcribe the same files with different models to compare quality:
 
 ```bash
-make prepare    # Convert once
-make tiny       # Fast preview
-make medium     # Better quality
-make large      # Best quality
-make status     # Check progress for all models
+just prepare    # Convert once
+just tiny       # Fast preview
+just medium     # Better quality
+just large      # Best quality
+just status     # Check progress for all models
 ```
 
-Each model's output is stored separately in `data/output/[category]/transcripts/[model]/`. Use `make status` to see progress for each model independently.
+Each model's output is stored separately in `data/output/[category]/transcripts/[model]/`. Use `just status` to see progress for each model independently.
 
 ### Processing Multiple Categories
 
@@ -222,14 +226,14 @@ data/input/
 └── meetings/
 ```
 
-Running `make prepare` and `make medium` will process all categories.
+Running `just prepare` and `just medium` will process all categories.
 
 ### Clean Up
 
 To remove all generated WAV files and transcripts (keeps original input files):
 
 ```bash
-make clean
+just clean
 ```
 
 ---
@@ -249,14 +253,14 @@ make clean
 ### No transcripts generated?
 
 - Check that WAV files exist in `data/output/[category]/wav/`
-- Verify `make prepare` completed successfully
+- Verify `just prepare` completed successfully
 - Ensure you have enough disk space and RAM
 
 ### Audio conversion failed?
 
 - Verify FFmpeg is installed: `ffmpeg -version`
 - Check that input files are valid media files
-- Look for error messages during `make prepare`
+- Look for error messages during `just prepare`
 
 ### Model download failed?
 
