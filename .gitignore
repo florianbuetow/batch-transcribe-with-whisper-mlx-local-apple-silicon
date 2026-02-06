@@ -1,6 +1,5 @@
 # Data directories
-data/input/
-data/output/
+data/
 tmp/
 
 # Python
