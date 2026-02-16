@@ -7,6 +7,13 @@ if [ -z "$DATA_DIR" ]; then
     DATA_DIR="/path/to/your/data/folder"
 fi
 
+# REMOVE_SILENCE: Set to "true" to remove silence from audio and generate silence_map.json
+REMOVE_SILENCE="${REMOVE_SILENCE:-true}"
+
+# Silence detection parameters (only used when REMOVE_SILENCE=true)
+SILENCE_THRESHOLD_DB="${SILENCE_THRESHOLD_DB:--40}"
+SILENCE_MIN_DURATION="${SILENCE_MIN_DURATION:-1}"
+
 # VERBOSE: Set to "true" to show individual skip messages, otherwise show summary
 # Default is "false" (summary only)
 VERBOSE="${VERBOSE:-false}"
@@ -50,7 +57,7 @@ find "$DATA_DIR/input" -mindepth 1 -maxdepth 1 -type d | while read -r category_
     # Counter for skipped files in this category
     skipped_count=0
 
-    # Process all supported media files (.mp4, .wav, .webm, .m4a, .mov, .m4v, .mp3, .ogg)
+    # Process all supported media files
     # Find all media files in this category's input directory
     while IFS= read -r -d '' input_file; do
 
@@ -72,19 +79,71 @@ find "$DATA_DIR/input" -mindepth 1 -maxdepth 1 -type d | while read -r category_
         else
             echo "  Processing: $filename"
 
-            # Convert to WAV with proper format
-            # -threads: Number of threads to use
-            # -y: Overwrite output file without asking
-            # -i: Input file
-            # -vn: No video (discard video stream)
-            # -ar 16000: Audio rate 16kHz
-            # -ac 1: Audio channels 1 (mono)
-            # -c:a pcm_s16le: Codec for 16-bit PCM WAV
-            # -loglevel error: Only show errors
-            # -stats: Show brief progress
-            echo "    Converting to output/$category_name/wav/$base_name.wav (using $NUM_THREADS threads)..."
-            ffmpeg -threads "$NUM_THREADS" -y -i "$input_file" -vn -ar 16000 -ac 1 -c:a pcm_s16le -loglevel error -stats "$output_wav" </dev/null
-            ffmpeg_exit=$?
+            if [ "$REMOVE_SILENCE" = "true" ]; then
+                # 3-step silence removal process
+                temp_wav="/tmp/prepare_audio_temp_${base_name}_$$.wav"
+                silence_log="/tmp/prepare_audio_silence_${base_name}_$$.log"
+
+                # Step 1: Convert to WAV and detect silence
+                echo "    Converting and detecting silence (using $NUM_THREADS threads)..."
+                ffmpeg -threads "$NUM_THREADS" -y -i "$input_file" \
+                    -vn -ar 16000 -ac 1 -c:a pcm_s16le \
+                    -af "silencedetect=noise=${SILENCE_THRESHOLD_DB}dB:d=${SILENCE_MIN_DURATION}" \
+                    -f wav "$temp_wav" \
+                    2> "$silence_log" </dev/null
+                ffmpeg_exit=$?
+
+                if [ $ffmpeg_exit -ne 0 ]; then
+                    echo "    🚨 FAILED to convert $filename"
+                    rm -f "$temp_wav" "$silence_log"
+                    exit 1
+                fi
+
+                # Step 2: Build select expression from silence log
+                DURATION=$(ffprobe -v error -show_entries format=duration \
+                    -of default=noprint_wrappers=1:nokey=1 "$temp_wav")
+
+                SELECT=$(awk '
+                    BEGIN           { prev = 0 }
+                    /silence_start/ { split($0, a, "silence_start: "); start = a[2] }
+                    /silence_end/   { split($0, a, "silence_end: ");   end = a[2]+0;
+                                       if (start+0 > prev+0) printf "between(t,%s,%s)+", prev, start;
+                                       prev = end }
+                    END             { if (prev+0 < '"$DURATION"'+0) printf "between(t,%s,%s)", prev, '"$DURATION"' }
+                ' "$silence_log")
+
+                # Remove trailing '+' if the audio ends with silence
+                SELECT="${SELECT%+}"
+
+                # Generate silence_map.json for timestamp reconstruction
+                silence_map="$DATA_DIR/output/$category_name/wav/$base_name.silence_map.json"
+                uv run python scripts/generate_silence_map.py \
+                    "$silence_log" "$DURATION" "$filename" "$silence_map" \
+                    --threshold-db "$SILENCE_THRESHOLD_DB" \
+                    --min-duration "$SILENCE_MIN_DURATION"
+
+                # Step 3: Extract speech segments only
+                if [ -n "$SELECT" ]; then
+                    echo "    Extracting speech segments (removing silence)..."
+                    ffmpeg -threads "$NUM_THREADS" -y -i "$temp_wav" \
+                        -af "aselect='${SELECT}',asetpts=N/SR/TB" \
+                        -ar 16000 -ac 1 -c:a pcm_s16le \
+                        -loglevel error -stats "$output_wav" </dev/null
+                    ffmpeg_exit=$?
+                else
+                    # No silence detected, use the converted file as-is
+                    echo "    No silence detected, keeping full audio..."
+                    mv "$temp_wav" "$output_wav"
+                    ffmpeg_exit=0
+                fi
+
+                rm -f "$temp_wav" "$silence_log"
+            else
+                # Standard conversion without silence removal
+                echo "    Converting to output/$category_name/wav/$base_name.wav (using $NUM_THREADS threads)..."
+                ffmpeg -threads "$NUM_THREADS" -y -i "$input_file" -vn -ar 16000 -ac 1 -c:a pcm_s16le -loglevel error -stats "$output_wav" </dev/null
+                ffmpeg_exit=$?
+            fi
 
             if [ $ffmpeg_exit -eq 0 ]; then
                 echo "    ✅ Done: $base_name.wav"

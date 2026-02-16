@@ -2,7 +2,7 @@
 
 This project uses [MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper), Apple's MLX framework implementation of OpenAI's Whisper model, to transcribe audio and video files on Apple Silicon (M1 or later) Macs. It is optimized for high-performance local inference using the Mac's built-in GPU and requires no cloud services.
 
-Audio and video files are organized into category folders (e.g., by source, channel, or topic), and the transcription workflow handles audio conversion, batch processing, and output management automatically.
+Audio and video files are organized into category folders (e.g., by source, channel, or topic), and the transcription workflow handles audio conversion, silence removal, batch processing, and output management automatically.
 
 ---
 
@@ -14,9 +14,15 @@ Audio and video files are organized into category folders (e.g., by source, chan
 ├── README.md
 ├── pyproject.toml
 ├── scripts/
-│   ├── prepare_audio.sh
-│   ├── transcribe.sh
-│   └── clean_transcripts.py
+│   ├── prepare_audio.sh          # Convert media to WAV + remove silence
+│   ├── generate_silence_map.py   # Generate silence_map.json from FFmpeg log
+│   ├── transcribe.sh             # Batch transcribe WAV files
+│   ├── remap_srt_timestamps.py   # Remap SRT timestamps to original timeline
+│   └── clean_transcripts.py      # Remove hallucinations from transcripts
+├── tests/
+│   ├── fixtures/
+│   │   └── test_with_silence.mp4 # Synthetic test audio (speech + silence gaps)
+│   └── test_e2e.sh               # End-to-end pipeline test
 └── data/
     ├── input/              # Source media files organized by category
     │   ├── category1/
@@ -24,12 +30,14 @@ Audio and video files are organized into category folders (e.g., by source, chan
     │   └── ...
     └── output/             # Generated files organized by category
         ├── category1/
-        │   ├── wav/        # Converted audio files
+        │   ├── wav/                    # Converted audio files (silence removed)
+        │   │   ├── file.wav
+        │   │   └── file.silence_map.json  # Timestamp mapping for reconstruction
         │   ├── transcripts/
         │   │   ├── tiny/
-        │   │   ├── medium/
+        │   │   ├── medium/             # .txt and .srt files (original timestamps)
         │   │   └── large/
-        │   └── transcripts_cleaned/  # Hallucination-cleaned transcripts
+        │   └── transcripts_cleaned/    # Hallucination-cleaned transcripts
         │       ├── tiny/
         │       ├── medium/
         │       └── large/
@@ -38,11 +46,13 @@ Audio and video files are organized into category folders (e.g., by source, chan
 
 - `justfile`: Automation targets for dependency setup, audio preparation, and transcription with different models.
 - `pyproject.toml`: Python project configuration with MLX Whisper dependency.
-- `scripts/prepare_audio.sh`: Converts media files to WAV format (16kHz, mono, 16-bit PCM).
-- `scripts/transcribe.sh`: Batch transcribes WAV files using MLX Whisper models.
+- `scripts/prepare_audio.sh`: Converts media files to WAV format (16kHz, mono, 16-bit PCM) with automatic silence removal and silence map generation.
+- `scripts/generate_silence_map.py`: Parses FFmpeg silence detection log and generates `silence_map.json` for timestamp reconstruction.
+- `scripts/transcribe.sh`: Batch transcribes WAV files using MLX Whisper models, generates `.txt` and `.srt` files, and remaps SRT timestamps to the original audio timeline.
+- `scripts/remap_srt_timestamps.py`: Remaps SRT timestamps from silence-removed audio back to the original audio timeline using `silence_map.json`.
 - `scripts/clean_transcripts.py`: Removes hallucinations (repetitive patterns) from transcripts.
 - `data/input/`: Place your media files here, organized into category subfolders.
-- `data/output/`: Generated WAV files and transcripts are stored here, organized by category and model.
+- `data/output/`: Generated WAV files, silence maps, and transcripts are stored here, organized by category and model.
 
 ---
 
@@ -113,9 +123,17 @@ just prepare
 This will:
 - Scan all category folders in `data/input/`
 - Convert media files to 16kHz mono WAV format
+- **Remove silence** from audio using FFmpeg's `silencedetect` filter (enabled by default)
+- Generate a `silence_map.json` alongside each WAV for timestamp reconstruction
 - Save converted files to `data/output/[category]/wav/`
 - Skip files that are already converted (idempotent)
 - Use multi-threaded FFmpeg for optimal performance
+
+To disable silence removal:
+
+```bash
+just prepare REMOVE_SILENCE=false
+```
 
 ### 4. Transcribe with Your Chosen Model
 
@@ -133,6 +151,8 @@ This will:
 - Process all WAV files in `data/output/*/wav/`
 - Download the model from HuggingFace if not cached
 - Transcribe each file using MLX Whisper
+- Generate `.txt` and `.srt` transcript files
+- **Remap SRT timestamps** to the original audio timeline (if silence was removed)
 - Save transcripts to `data/output/[category]/transcripts/[model]/`
 - Skip files that are already transcribed (idempotent)
 
@@ -165,7 +185,22 @@ just clean-transcripts "" true
 
 **Note**: The hallucination detector uses a machine learning classifier trained on transcription patterns. It focuses on consecutive repetitions of phrases (3+ words repeated 5+ times). Single-word repetitions like "Okay. Okay. Okay." may not be flagged as they can occur in natural speech.
 
-### 6. Check Progress
+### 6. Run Tests
+
+Run the end-to-end pipeline test to verify everything works:
+
+```bash
+just test
+```
+
+This runs the full pipeline (prepare → transcribe → clean) on a synthetic test audio file with 3 speech segments separated by silence gaps. It verifies that:
+- WAV conversion and silence removal work correctly
+- `silence_map.json` is generated with the correct segment structure
+- Only `.txt` and `.srt` transcript formats are produced
+- SRT timestamps are remapped to the original audio timeline (not the silence-removed timeline)
+- Cleaned transcript files are generated
+
+### 7. Check Progress
 
 Monitor transcription progress across all categories and models:
 
@@ -196,18 +231,63 @@ Category: interviews
   medium-en :   2 transcripts ( 40%)
 ```
 
-### 7. View Transcripts
+### 8. View Transcripts
 
 After transcription (and optional cleaning), you will find your transcripts organized by category and model:
 
 ```bash
 # Original transcripts
 data/output/my-podcasts/transcripts/medium/episode1.txt
-data/output/my-podcasts/transcripts/medium/episode2.txt
+data/output/my-podcasts/transcripts/medium/episode1.srt
 
 # Cleaned transcripts (after running clean-transcripts)
 data/output/my-podcasts/transcripts_cleaned/medium/episode1.txt
 data/output/my-podcasts/transcripts_cleaned/medium/episode1.srt
+```
+
+---
+
+## Silence Removal and Timestamp Reconstruction
+
+By default, `just prepare` removes silence from audio files before transcription. This improves transcription quality by eliminating long silent gaps that can cause Whisper to hallucinate.
+
+**How it works:**
+
+1. **Pass 1**: Converts media to WAV while detecting silence intervals using FFmpeg's `silencedetect` filter
+2. **Silence map**: Generates `silence_map.json` with a bidirectional mapping between trimmed and original audio timestamps
+3. **Pass 2**: Extracts only speech segments using FFmpeg's `aselect` filter
+4. **After transcription**: `remap_srt_timestamps.py` uses the silence map to convert SRT timestamps back to the original audio timeline
+
+**Silence detection parameters** (configurable via environment variables):
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `SILENCE_THRESHOLD_DB` | -40 | Silence threshold in dB. More negative = only very quiet sounds treated as silence. |
+| `SILENCE_MIN_DURATION` | 1 | Minimum silence duration in seconds before removal. |
+
+```bash
+# More aggressive silence removal
+SILENCE_THRESHOLD_DB=-30 SILENCE_MIN_DURATION=0.5 just prepare
+
+# More conservative silence removal
+SILENCE_THRESHOLD_DB=-50 SILENCE_MIN_DURATION=2 just prepare
+```
+
+**Silence map JSON format:**
+
+```json
+{
+  "version": "1.0",
+  "source_file": "episode1.mp4",
+  "audio_duration_original_seconds": 3600.5,
+  "audio_duration_trimmed_seconds": 3200.3,
+  "silence_threshold_db": -40.0,
+  "silence_min_duration_seconds": 1.0,
+  "kept_segments": [
+    {"trimmed_start": 0.0, "trimmed_end": 120.5, "original_start": 0.0, "original_end": 120.5},
+    {"trimmed_start": 120.5, "trimmed_end": 335.3, "original_start": 125.3, "original_end": 340.1}
+  ]
+}
 ```
 
 ---
@@ -223,7 +303,7 @@ mkdir -p data/input/interviews
 cp interview1.mp4 data/input/interviews/
 cp interview2.m4a data/input/interviews/
 
-# Convert to WAV
+# Convert to WAV (with silence removal)
 just prepare
 
 # Transcribe with medium model (good balance of speed and quality)
@@ -387,7 +467,7 @@ This keeps transcripts well-organized in `data/output/` with the same structure.
 - **Privacy-focused**: All processing happens locally on your Mac. No cloud services or API calls (except for model downloads).
 - **Category-based organization**: Unlike model-based routing, this system organizes by content source/category.
 - **Two-stage workflow**: Separate audio preparation and transcription allows you to prepare once, then try different models.
-- **Output format**: Generates `.txt` transcripts by default. MLX Whisper also supports other formats.
+- **Output formats**: Generates `.txt` (plain text) and `.srt` (with timestamps) transcript files.
 - **Apple Silicon only**: This project requires Apple Silicon (M1 or later). For Intel Macs or other platforms, use [whisper.cpp](https://github.com/ggerganov/whisper.cpp) instead.
 
 ---

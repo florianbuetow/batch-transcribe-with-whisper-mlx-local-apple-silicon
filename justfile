@@ -12,7 +12,7 @@ help:
     @echo ""
     @echo "Available targets:"
     @echo "  init              - Install dependencies"
-    @echo "  prepare           - Convert audio/video files to WAV files"
+    @echo "  prepare           - Convert media to WAV (with silence removal + silence map)"
     @echo "  tiny              - Transcribe WAVs with tiny model (fastest, multilingual)"
     @echo "  tiny-en           - Transcribe WAVs with tiny English-only model"
     @echo "  medium            - Transcribe WAVs with medium model (multilingual)"
@@ -20,7 +20,8 @@ help:
     @echo "  large             - Transcribe WAVs with large-v3 model (best quality, multilingual)"
     @echo "  clean-transcripts - Remove hallucinations from transcripts"
     @echo "  status            - Show transcription progress for each category"
-    @echo "  clean             - Remove all WAV and transcript files"
+    @echo "  clean             - Remove all WAV, transcript, and silence map files"
+    @echo "  test              - Run end-to-end pipeline test"
     @echo ""
 
 # Install dependencies
@@ -29,10 +30,10 @@ init:
     uv sync
     @echo ""
 
-# Convert audio/video files to WAV format
-prepare VERBOSE="":
+# Convert audio/video files to WAV format (silence removal enabled by default)
+prepare VERBOSE="" REMOVE_SILENCE="true":
     @echo ""
-    DATA_DIR="{{justfile_directory()}}/data" VERBOSE="{{VERBOSE}}" bash scripts/prepare_audio.sh
+    DATA_DIR="{{justfile_directory()}}/data" REMOVE_SILENCE="{{REMOVE_SILENCE}}" VERBOSE="{{VERBOSE}}" bash scripts/prepare_audio.sh
     @echo ""
 
 # Transcribe with tiny model (fastest, multilingual)
@@ -138,11 +139,16 @@ status:
     rm -f "$tmpfile"
     echo ""
 
-# Remove all WAV and transcript files
+# Run end-to-end pipeline test (prepare → transcribe → clean-transcripts)
+test:
+    @bash tests/test_e2e.sh
+
+# Remove all WAV, transcript, silence map, and cleaned transcript files
 clean:
     @echo ""
-    @echo "Removing WAV and transcript files..."
+    @echo "Removing WAV, transcript, and silence map files..."
     rm -rf data/output/*/wav/*
     rm -rf data/output/*/transcripts/*
+    rm -rf data/output/*/transcripts_cleaned/*
     @echo "Clean complete"
     @echo ""

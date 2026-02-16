@@ -69,14 +69,13 @@ find "$DATA_DIR/output" -mindepth 1 -maxdepth 1 -type d | while read -r category
         # Create a temp directory for this transcription
         temp_dir=$(mktemp -d)
 
-        # Transcribe WAV file to temp directory (output all formats: txt, srt, vtt, tsv, json)
+        # Transcribe WAV file to temp directory (generate all formats, keep txt + srt)
         uv run mlx_whisper "$wav_file" --model "$MODEL_REPO" --output-dir "$temp_dir" --output-format all
 
         if [ $? -eq 0 ]; then
-            # Move all generated files to the transcripts directory
-            # mlx_whisper creates: .txt, .srt, .vtt, .tsv, .json
+            # Move only txt and srt files to the transcripts directory
             moved_files=0
-            for ext in txt srt vtt tsv json; do
+            for ext in txt srt; do
                 generated_file=$(find "$temp_dir" -type f -name "*.$ext" | head -n 1)
                 if [ -f "$generated_file" ]; then
                     mv "$generated_file" "$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name.$ext"
@@ -85,6 +84,14 @@ find "$DATA_DIR/output" -mindepth 1 -maxdepth 1 -type d | while read -r category
             done
 
             if [ $moved_files -gt 0 ]; then
+                # Remap SRT timestamps if silence was removed (silence_map.json exists)
+                silence_map="$DATA_DIR/output/$category_name/wav/$base_name.silence_map.json"
+                srt_file="$DATA_DIR/output/$category_name/transcripts/$MODEL_NAME/$base_name.srt"
+                if [ -f "$silence_map" ] && [ -f "$srt_file" ]; then
+                    echo "    Remapping SRT timestamps to original audio timeline..."
+                    uv run python scripts/remap_srt_timestamps.py "$srt_file" "$silence_map"
+                fi
+
                 echo "    ✅ Done: $base_name ($moved_files formats)"
             else
                 echo "    🚨 FAILED: No transcript generated for $base_name.wav"
