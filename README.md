@@ -2,6 +2,8 @@
 
 This project uses [MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper), Apple's MLX framework implementation of OpenAI's Whisper model, to transcribe audio and video files on Apple Silicon (M1 or later) Macs. It is optimized for high-performance local inference using the Mac's built-in GPU and requires no cloud services.
 
+To reduce hallucinations, silence is automatically removed from audio before transcription, with SRT timestamps reconstructed back to the original timeline. A custom-trained SVM classifier then detects and cleans any remaining hallucinations from the transcripts.
+
 Audio and video files are organized into category folders (e.g., by source, channel, or topic), and the transcription workflow handles audio conversion, silence removal, batch processing, and output management automatically.
 
 ---
