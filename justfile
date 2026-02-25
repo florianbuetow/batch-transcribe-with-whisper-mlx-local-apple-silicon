@@ -45,7 +45,7 @@ tiny VERBOSE="":
 # Transcribe with tiny English-only model
 tiny-en VERBOSE="":
     @echo ""
-    DATA_DIR="{{justfile_directory()}}/data" MODEL_NAME=tiny-en MODEL_REPO=mlx-community/whisper-tiny VERBOSE="{{VERBOSE}}" bash scripts/transcribe.sh
+    DATA_DIR="{{justfile_directory()}}/data" MODEL_NAME=tiny-en MODEL_REPO=mlx-community/whisper-tiny LANGUAGE=en VERBOSE="{{VERBOSE}}" bash scripts/transcribe.sh
     @echo ""
 
 # Transcribe with medium model (balanced, multilingual)
@@ -57,7 +57,7 @@ medium VERBOSE="":
 # Transcribe with medium English-only model
 medium-en VERBOSE="":
     @echo ""
-    DATA_DIR="{{justfile_directory()}}/data" MODEL_NAME=medium-en MODEL_REPO=mlx-community/whisper-medium-mlx VERBOSE="{{VERBOSE}}" bash scripts/transcribe.sh
+    DATA_DIR="{{justfile_directory()}}/data" MODEL_NAME=medium-en MODEL_REPO=mlx-community/whisper-medium-mlx LANGUAGE=en VERBOSE="{{VERBOSE}}" bash scripts/transcribe.sh
     @echo ""
 
 # Transcribe with large model (best quality, multilingual)

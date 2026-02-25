@@ -70,7 +70,11 @@ find "$DATA_DIR/output" -mindepth 1 -maxdepth 1 -type d | while read -r category
         temp_dir=$(mktemp -d)
 
         # Transcribe WAV file to temp directory (generate all formats, keep txt + srt)
-        uv run mlx_whisper "$wav_file" --model "$MODEL_REPO" --output-dir "$temp_dir" --output-format all
+        LANGUAGE_FLAG=""
+        if [ -n "$LANGUAGE" ]; then
+            LANGUAGE_FLAG="--language $LANGUAGE"
+        fi
+        uv run mlx_whisper "$wav_file" --model "$MODEL_REPO" --output-dir "$temp_dir" --output-format all $LANGUAGE_FLAG
 
         if [ $? -eq 0 ]; then
             # Move only txt and srt files to the transcripts directory
