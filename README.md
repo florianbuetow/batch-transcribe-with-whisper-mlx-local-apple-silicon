@@ -62,13 +62,13 @@ Audio and video files are organized into category folders (e.g., by source, chan
 
 Models are automatically downloaded from HuggingFace when first used. Choose the model that best fits your needs:
 
-| Model | Speed | Language Support | Quality | HuggingFace Repo |
-|-------|-------|------------------|---------|------------------|
-| **tiny** | Fastest | Multilingual | Basic | mlx-community/whisper-tiny |
-| **tiny-en** | Fastest | English only | Basic | mlx-community/whisper-tiny |
-| **medium** | Balanced | Multilingual | Good | mlx-community/whisper-medium-mlx |
-| **medium-en** | Balanced | English only | Good | mlx-community/whisper-medium-mlx |
-| **large** | Slowest | Multilingual | Best | mlx-community/whisper-large-v3-mlx |
+| Model | Speed | Language | Quality | HuggingFace Repo |
+|-------|-------|----------|---------|------------------|
+| **tiny** | Fastest | Multilingual (auto-detect) | Basic | mlx-community/whisper-tiny |
+| **tiny-en** | Fastest | English (enforced) | Basic | mlx-community/whisper-tiny |
+| **medium** | Balanced | Multilingual (auto-detect) | Good | mlx-community/whisper-medium-mlx |
+| **medium-en** | Balanced | English (enforced) | Good | mlx-community/whisper-medium-mlx |
+| **large** | Slowest | Multilingual (auto-detect) | Best | mlx-community/whisper-large-v3-mlx |
 
 ---
 
@@ -142,12 +142,14 @@ just prepare REMOVE_SILENCE=false
 Run transcription with one of the available models:
 
 ```bash
-just tiny       # Fastest, multilingual
-just tiny-en    # Fastest, English-only
-just medium     # Balanced, multilingual
-just medium-en  # Balanced, English-only
-just large      # Best quality, multilingual
+just tiny       # Fastest, multilingual (auto-detect language)
+just tiny-en    # Fastest, English-only (language enforced)
+just medium     # Balanced, multilingual (auto-detect language)
+just medium-en  # Balanced, English-only (language enforced)
+just large      # Best quality, multilingual (auto-detect language)
 ```
+
+The `-en` targets enforce `--language en` to skip language auto-detection, which improves transcription accuracy for English audio. Multilingual targets use Whisper's automatic language detection.
 
 This will:
 - Process all WAV files in `data/output/*/wav/`
