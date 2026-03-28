@@ -99,21 +99,9 @@ find "$DATA_DIR/input" -mindepth 1 -maxdepth 1 -type d | while read -r category_
                     exit 1
                 fi
 
-                # Step 2: Build select expression from silence log
+                # Step 2: Get duration and generate silence map
                 DURATION=$(ffprobe -v error -show_entries format=duration \
                     -of default=noprint_wrappers=1:nokey=1 "$temp_wav")
-
-                SELECT=$(awk '
-                    BEGIN           { prev = 0 }
-                    /silence_start/ { split($0, a, "silence_start: "); start = a[2] }
-                    /silence_end/   { split($0, a, "silence_end: ");   end = a[2]+0;
-                                       if (start+0 > prev+0) printf "between(t,%s,%s)+", prev, start;
-                                       prev = end }
-                    END             { if (prev+0 < '"$DURATION"'+0) printf "between(t,%s,%s)", prev, '"$DURATION"' }
-                ' "$silence_log")
-
-                # Remove trailing '+' if the audio ends with silence
-                SELECT="${SELECT%+}"
 
                 # Generate silence_map.json for timestamp reconstruction
                 silence_map="$DATA_DIR/output/$category_name/wav/$base_name.silence_map.json"
@@ -122,16 +110,58 @@ find "$DATA_DIR/input" -mindepth 1 -maxdepth 1 -type d | while read -r category_
                     --threshold-db "$SILENCE_THRESHOLD_DB" \
                     --min-duration "$SILENCE_MIN_DURATION"
 
-                # Step 3: Extract speech segments only
-                if [ -n "$SELECT" ]; then
-                    echo "    Extracting speech segments (removing silence)..."
-                    ffmpeg -threads "$NUM_THREADS" -y -i "$temp_wav" \
-                        -af "aselect='${SELECT}',asetpts=N/SR/TB" \
-                        -ar 16000 -ac 1 -c:a pcm_s16le \
-                        -loglevel error -stats "$output_wav" </dev/null
+                # Step 3: Extract speech segments and concatenate
+                # Uses segment-and-concatenate instead of aselect filter to avoid
+                # "Cannot allocate memory" when there are hundreds of between() terms
+                num_segments=$(python3 -c "import json; print(len(json.load(open('$silence_map'))['kept_segments']))")
+
+                if [ "$num_segments" -gt 0 ]; then
+                    echo "    Extracting $num_segments speech segments (removing silence)..."
+                    temp_segments_dir="/tmp/prepare_audio_segments_${base_name}_$$"
+                    concat_list="$temp_segments_dir/concat.txt"
+                    mkdir -p "$temp_segments_dir"
+                    > "$concat_list"
+
+                    # Extract each speech segment individually, skipping tiny segments
+                    segment_index=0
+                    while read -r seg_start seg_duration; do
+                        segment_file="$temp_segments_dir/seg_$(printf '%04d' $segment_index).wav"
+
+                        ffmpeg -y -i "$temp_wav" \
+                            -ss "$seg_start" -t "$seg_duration" \
+                            -ar 16000 -ac 1 -c:a pcm_s16le \
+                            -loglevel error \
+                            "$segment_file" </dev/null
+                        ffmpeg_exit=$?
+
+                        if [ $ffmpeg_exit -ne 0 ]; then
+                            echo "    🚨 FAILED to extract segment $segment_index from $filename"
+                            rm -rf "$temp_segments_dir"
+                            rm -f "$temp_wav" "$silence_log"
+                            exit 1
+                        fi
+
+                        echo "file '$segment_file'" >> "$concat_list"
+                        segment_index=$((segment_index + 1))
+                    done < <(python3 -c "
+import json
+segments = json.load(open('$silence_map'))['kept_segments']
+for s in segments:
+    dur = s['original_end'] - s['original_start']
+    if dur >= 0.01:
+        print(f\"{s['original_start']} {dur}\")
+")
+
+                    # Concatenate all segments into final output
+                    ffmpeg -y -f concat -safe 0 -i "$concat_list" \
+                        -c copy \
+                        -loglevel error \
+                        "$output_wav" </dev/null
                     ffmpeg_exit=$?
+
+                    rm -rf "$temp_segments_dir"
                 else
-                    # No silence detected, use the converted file as-is
+                    # No speech detected, use the converted file as-is
                     echo "    No silence detected, keeping full audio..."
                     mv "$temp_wav" "$output_wav"
                     ffmpeg_exit=0
