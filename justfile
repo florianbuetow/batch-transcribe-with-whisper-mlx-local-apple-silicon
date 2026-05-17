@@ -55,6 +55,7 @@ help:
     @printf "  %-38s %s\n" "help" "Show this help information"
     @echo ""
     @printf "\033[0;33mEntire Pipeline:\033[0m\n"
+    @printf "  %-38s %s\n" "go" "Alias for medium-en-all"
     @printf "  %-38s %s\n" "tiny-all" "Run full pipeline: prepare → tiny → clean-transcripts"
     @printf "  %-38s %s\n" "tiny-en-all" "Run full pipeline: prepare → tiny-en → clean-transcripts"
     @printf "  %-38s %s\n" "medium-all" "Run full pipeline: prepare → medium → clean-transcripts"
@@ -86,6 +87,10 @@ init:
     @echo ""
     @printf "\033[32m✓ init completed successfully\033[0m\n"
     @echo ""
+
+# Alias for medium-en-all
+go VERBOSE="" REMOVE_SILENCE="true":
+    @just medium-en-all VERBOSE="{{VERBOSE}}" REMOVE_SILENCE="{{REMOVE_SILENCE}}"
 
 # Run full pipeline: prepare → tiny transcription → clean hallucinations
 tiny-all VERBOSE="" REMOVE_SILENCE="true":
