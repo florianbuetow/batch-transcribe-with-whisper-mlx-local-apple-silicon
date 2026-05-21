@@ -63,6 +63,7 @@ help:
     @printf "  %-38s %s\n" "large-all" "Run full pipeline: prepare → large → clean-transcripts"
     @echo ""
     @printf "\033[0;33mPreparation:\033[0m\n"
+    @printf "  %-38s %s\n" "download URL" "Download audio from URL into data/input/youtube/"
     @printf "  %-38s %s\n" "prepare" "Convert media to WAV (with silence removal + silence map)"
     @echo ""
     @printf "\033[0;33mTranscription Models:\033[0m\n"
@@ -226,6 +227,15 @@ large-all VERBOSE="" REMOVE_SILENCE="true":
     echo ""
     printf "\033[32m✓ large-all pipeline completed successfully\033[0m\n"
     echo ""
+
+# Download audio from a URL into data/input/youtube/
+download URL:
+    @echo ""
+    mkdir -p {{justfile_directory()}}/data/input/youtube
+    yt-dlp -f "bestaudio[ext=m4a]" -o "{{justfile_directory()}}/data/input/youtube/%(title)s.%(ext)s" "{{URL}}"
+    @echo ""
+    @printf "\033[32m✓ download completed successfully\033[0m\n"
+    @echo ""
 
 # Convert audio/video files to WAV format (silence removal enabled by default)
 prepare VERBOSE="" REMOVE_SILENCE="true":
