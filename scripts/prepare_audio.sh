@@ -184,7 +184,7 @@ for s in segments:
             echo "  ---"
         fi
 
-    done < <(find "$category_dir" -maxdepth 1 -type f \( -iname "*.mp4" -o -iname "*.wav" -o -iname "*.webm" -o -iname "*.m4a" -o -iname "*.mov" -o -iname "*.m4v" -o -iname "*.mp3" -o -iname "*.ogg" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.flv" \) -print0)
+    done < <(find "$category_dir" -maxdepth 1 -type f \( -iname "*.mp4" -o -iname "*.wav" -o -iname "*.webm" -o -iname "*.m4a" -o -iname "*.mov" -o -iname "*.m4v" -o -iname "*.mp3" -o -iname "*.ogg" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.flv" -o -iname "*.aiff" \) -print0)
 
     # Print skip summary if any files were skipped
     if [ $skipped_count -gt 0 ]; then
