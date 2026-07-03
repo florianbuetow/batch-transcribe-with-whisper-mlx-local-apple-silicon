@@ -91,7 +91,7 @@ init:
 
 # Alias for medium-en-all
 go VERBOSE="" REMOVE_SILENCE="true":
-    @just medium-en-all VERBOSE="{{VERBOSE}}" REMOVE_SILENCE="{{REMOVE_SILENCE}}"
+    @just medium-en-all "{{VERBOSE}}" "{{REMOVE_SILENCE}}"
 
 # Run full pipeline: prepare → tiny transcription → clean hallucinations
 tiny-all VERBOSE="" REMOVE_SILENCE="true":
@@ -101,17 +101,17 @@ tiny-all VERBOSE="" REMOVE_SILENCE="true":
     printf "Running full tiny pipeline...\n"
     echo ""
 
-    just prepare VERBOSE="{{VERBOSE}}" REMOVE_SILENCE="{{REMOVE_SILENCE}}" || {
+    just prepare "{{VERBOSE}}" "{{REMOVE_SILENCE}}" || {
         printf "\033[31m✗ tiny-all failed: prepare step exited with errors\033[0m\n"
         exit 1
     }
 
-    just tiny VERBOSE="{{VERBOSE}}" || {
+    just tiny "{{VERBOSE}}" || {
         printf "\033[31m✗ tiny-all failed: tiny transcription exited with errors\033[0m\n"
         exit 1
     }
 
-    just clean-transcripts MODEL="tiny" VERBOSE="{{VERBOSE}}" || {
+    just clean-transcripts "tiny" "{{VERBOSE}}" || {
         printf "\033[31m✗ tiny-all failed: clean-transcripts exited with errors\033[0m\n"
         exit 1
     }
@@ -128,17 +128,17 @@ tiny-en-all VERBOSE="" REMOVE_SILENCE="true":
     printf "Running full tiny-en pipeline...\n"
     echo ""
 
-    just prepare VERBOSE="{{VERBOSE}}" REMOVE_SILENCE="{{REMOVE_SILENCE}}" || {
+    just prepare "{{VERBOSE}}" "{{REMOVE_SILENCE}}" || {
         printf "\033[31m✗ tiny-en-all failed: prepare step exited with errors\033[0m\n"
         exit 1
     }
 
-    just tiny-en VERBOSE="{{VERBOSE}}" || {
+    just tiny-en "{{VERBOSE}}" || {
         printf "\033[31m✗ tiny-en-all failed: tiny-en transcription exited with errors\033[0m\n"
         exit 1
     }
 
-    just clean-transcripts MODEL="tiny-en" VERBOSE="{{VERBOSE}}" || {
+    just clean-transcripts "tiny-en" "{{VERBOSE}}" || {
         printf "\033[31m✗ tiny-en-all failed: clean-transcripts exited with errors\033[0m\n"
         exit 1
     }
@@ -155,17 +155,17 @@ medium-all VERBOSE="" REMOVE_SILENCE="true":
     printf "Running full medium pipeline...\n"
     echo ""
 
-    just prepare VERBOSE="{{VERBOSE}}" REMOVE_SILENCE="{{REMOVE_SILENCE}}" || {
+    just prepare "{{VERBOSE}}" "{{REMOVE_SILENCE}}" || {
         printf "\033[31m✗ medium-all failed: prepare step exited with errors\033[0m\n"
         exit 1
     }
 
-    just medium VERBOSE="{{VERBOSE}}" || {
+    just medium "{{VERBOSE}}" || {
         printf "\033[31m✗ medium-all failed: medium transcription exited with errors\033[0m\n"
         exit 1
     }
 
-    just clean-transcripts MODEL="medium" VERBOSE="{{VERBOSE}}" || {
+    just clean-transcripts "medium" "{{VERBOSE}}" || {
         printf "\033[31m✗ medium-all failed: clean-transcripts exited with errors\033[0m\n"
         exit 1
     }
@@ -182,17 +182,17 @@ medium-en-all VERBOSE="" REMOVE_SILENCE="true":
     printf "Running full medium-en pipeline...\n"
     echo ""
 
-    just prepare VERBOSE="{{VERBOSE}}" REMOVE_SILENCE="{{REMOVE_SILENCE}}" || {
+    just prepare "{{VERBOSE}}" "{{REMOVE_SILENCE}}" || {
         printf "\033[31m✗ medium-en-all failed: prepare step exited with errors\033[0m\n"
         exit 1
     }
 
-    just medium-en VERBOSE="{{VERBOSE}}" || {
+    just medium-en "{{VERBOSE}}" || {
         printf "\033[31m✗ medium-en-all failed: medium-en transcription exited with errors\033[0m\n"
         exit 1
     }
 
-    just clean-transcripts MODEL="medium-en" VERBOSE="{{VERBOSE}}" || {
+    just clean-transcripts "medium-en" "{{VERBOSE}}" || {
         printf "\033[31m✗ medium-en-all failed: clean-transcripts exited with errors\033[0m\n"
         exit 1
     }
@@ -209,17 +209,17 @@ large-all VERBOSE="" REMOVE_SILENCE="true":
     printf "Running full large pipeline...\n"
     echo ""
 
-    just prepare VERBOSE="{{VERBOSE}}" REMOVE_SILENCE="{{REMOVE_SILENCE}}" || {
+    just prepare "{{VERBOSE}}" "{{REMOVE_SILENCE}}" || {
         printf "\033[31m✗ large-all failed: prepare step exited with errors\033[0m\n"
         exit 1
     }
 
-    just large VERBOSE="{{VERBOSE}}" || {
+    just large "{{VERBOSE}}" || {
         printf "\033[31m✗ large-all failed: large transcription exited with errors\033[0m\n"
         exit 1
     }
 
-    just clean-transcripts MODEL="large" VERBOSE="{{VERBOSE}}" || {
+    just clean-transcripts "large" "{{VERBOSE}}" || {
         printf "\033[31m✗ large-all failed: clean-transcripts exited with errors\033[0m\n"
         exit 1
     }
