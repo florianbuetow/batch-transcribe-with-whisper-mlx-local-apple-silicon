@@ -75,6 +75,7 @@ help:
     @echo ""
     @printf "\033[0;33mPost-processing:\033[0m\n"
     @printf "  %-38s %s\n" "clean-transcripts" "Remove hallucinations from transcripts"
+    @printf "  %-38s %s\n" "compress-audio" "Compress WAVs to 128 kbps 44.1 kHz MP3 (removes WAVs)"
     @echo ""
     @printf "\033[0;33mStatus & Testing:\033[0m\n"
     @printf "  %-38s %s\n" "status" "Show transcription progress for each category"
@@ -116,6 +117,11 @@ tiny-all VERBOSE="" REMOVE_SILENCE="true":
         exit 1
     }
 
+    just compress-audio "{{VERBOSE}}" || {
+        printf "\033[31m✗ tiny-all failed: compress-audio exited with errors\033[0m\n"
+        exit 1
+    }
+
     echo ""
     printf "\033[32m✓ tiny-all pipeline completed successfully\033[0m\n"
     echo ""
@@ -140,6 +146,11 @@ tiny-en-all VERBOSE="" REMOVE_SILENCE="true":
 
     just clean-transcripts "tiny-en" "{{VERBOSE}}" || {
         printf "\033[31m✗ tiny-en-all failed: clean-transcripts exited with errors\033[0m\n"
+        exit 1
+    }
+
+    just compress-audio "{{VERBOSE}}" || {
+        printf "\033[31m✗ tiny-en-all failed: compress-audio exited with errors\033[0m\n"
         exit 1
     }
 
@@ -170,6 +181,11 @@ medium-all VERBOSE="" REMOVE_SILENCE="true":
         exit 1
     }
 
+    just compress-audio "{{VERBOSE}}" || {
+        printf "\033[31m✗ medium-all failed: compress-audio exited with errors\033[0m\n"
+        exit 1
+    }
+
     echo ""
     printf "\033[32m✓ medium-all pipeline completed successfully\033[0m\n"
     echo ""
@@ -197,6 +213,11 @@ medium-en-all VERBOSE="" REMOVE_SILENCE="true":
         exit 1
     }
 
+    just compress-audio "{{VERBOSE}}" || {
+        printf "\033[31m✗ medium-en-all failed: compress-audio exited with errors\033[0m\n"
+        exit 1
+    }
+
     echo ""
     printf "\033[32m✓ medium-en-all pipeline completed successfully\033[0m\n"
     echo ""
@@ -221,6 +242,11 @@ large-all VERBOSE="" REMOVE_SILENCE="true":
 
     just clean-transcripts "large" "{{VERBOSE}}" || {
         printf "\033[31m✗ large-all failed: clean-transcripts exited with errors\033[0m\n"
+        exit 1
+    }
+
+    just compress-audio "{{VERBOSE}}" || {
+        printf "\033[31m✗ large-all failed: compress-audio exited with errors\033[0m\n"
         exit 1
     }
 
@@ -292,6 +318,15 @@ clean-transcripts MODEL="" VERBOSE="":
     DATA_DIR="{{justfile_directory()}}/data" MODEL="{{MODEL}}" VERBOSE="{{VERBOSE}}" uv run python scripts/clean_transcripts.py
     @echo ""
     @printf "\033[32m✓ clean-transcripts completed successfully\033[0m\n"
+    @echo ""
+
+# Compress WAV files to 128 kbps 44.1 kHz MP3 (WAV removed after verification)
+compress-audio VERBOSE="":
+    @echo ""
+    @printf "Compressing WAV files to MP3...\n"
+    DATA_DIR="{{justfile_directory()}}/data" VERBOSE="{{VERBOSE}}" bash scripts/compress_audio.sh
+    @echo ""
+    @printf "\033[32m✓ compress-audio completed successfully\033[0m\n"
     @echo ""
 
 # Show transcription progress for each category
